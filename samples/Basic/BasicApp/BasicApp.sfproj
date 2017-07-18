@@ -31,7 +31,7 @@
     <Content Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\Pictures\Basic.Web\Basic.Web.csproj" />
+    <ProjectReference Include="..\Basic.Web\Basic.Web.csproj" />
     <ProjectReference Include="..\Basic.ProductSvc\Basic.ProductSvc.csproj" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.Common.targets" />
