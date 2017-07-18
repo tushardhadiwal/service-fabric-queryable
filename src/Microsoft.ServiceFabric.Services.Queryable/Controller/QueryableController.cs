@@ -13,18 +13,17 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using System.Web;
-using System.Web.Http;
 using System.Web.Http.Results;
 using System.Xml;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Html;
 using Microsoft.ServiceFabric.Services.Queryable.Controller;
-
-
 
 namespace Microsoft.ServiceFabric.Services.Queryable
 {
-	public abstract class QueryableController : ApiController
+	public abstract class QueryableController : AspNetCore.Mvc.Controller
 	{
-		protected async Task<IHttpActionResult> GetMetadataAsync(string application, string service)
+		protected async Task<IActionResult> GetMetadataAsync(string application, string service)
 		{
 			var serviceUri = GetServiceUri(application, service);
 
@@ -39,7 +38,7 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 
 				// Return xml response.
 				var response = new HttpResponseMessage { Content = new StringContent(xml.InnerXml, Encoding.UTF8, "application/xml") };
-				return new ResponseMessageResult(response);
+				return this.Json(new ResponseMessageResult(response));
 			}
 			catch (Exception e)
 			{
@@ -47,13 +46,13 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 			}
 		}
 
-		protected async Task<IHttpActionResult> QueryAsync(string application, string service, string collection)
+		protected async Task<IActionResult> QueryAsync(string application, string service, string collection)
 		{
 			var serviceUri = GetServiceUri(application, service);
 
 			try
 			{
-				var query = Request.GetQueryNameValuePairs();
+				var query = Request.Query.Select(q => new KeyValuePair<string, string>(q.Key, q.Value));
 
 				// Query one service partition, allowing the partition to do the distributed query.
 				var proxy = await GetServiceProxyAsync<IQueryableService>(serviceUri).ConfigureAwait(false);
@@ -63,10 +62,12 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 				var result = new ODataResult
 				{
 					ODataMetadata = "",
-					Value = results.Select(JsonConvert.DeserializeObject<JObject>),
+					//Value = results.Select(JsonConvert.DeserializeObject<JObject>),
 				};
+			    var tres = results.Select(JsonConvert.DeserializeObject<JObject>);
 
-				return Ok(result);
+
+                return Ok(tres);
 			}
 			catch (Exception e)
 			{
@@ -74,7 +75,7 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 			}
 		}
 
-		protected async Task<IHttpActionResult> DeleteAsync(string application, string service, string collection, ValueViewModel[] obj)
+		protected async Task<IActionResult> DeleteAsync(string application, string service, string collection, ValueViewModel[] obj)
 		{
 			var serviceUri = GetServiceUri(application, service);
 			try
@@ -104,7 +105,7 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 		}
 
 
-	    protected async Task<IHttpActionResult> AddAsync(string application, string service, string collection,
+	    protected async Task<IActionResult> AddAsync(string application, string service, string collection,
 	        ValueViewModel[] Obj)
 	    {
 	        var serviceUri = GetServiceUri(application, service);
@@ -135,7 +136,7 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 
 	    }
 
-	    protected async Task<IHttpActionResult> UpdateAsync(string application, string service, string collection, ValueViewModel[] Obj)
+	    protected async Task<IActionResult> UpdateAsync(string application, string service, string collection, ValueViewModel[] Obj)
 	    {
 	        var serviceUri = GetServiceUri(application, service);
 	        try
@@ -165,24 +166,24 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 
 	    }
 
-        private IHttpActionResult HandleException(Exception e, Uri serviceUri)
+        private IActionResult HandleException(Exception e, Uri serviceUri)
 		{
 			if (e is FabricServiceNotFoundException)
-				return Content(HttpStatusCode.NotFound, new { Message = $"Service '{serviceUri}' not found." });
+				return StatusCode((int)HttpStatusCode.NotFound, new { Message = $"Service '{serviceUri}' not found." });
 
 			if (e is ArgumentException)
 				return BadRequest(e.Message);
 			if (e.InnerException is ArgumentException)
 				return BadRequest(e.InnerException.Message);
+
 		    if (e is HttpException)
-		        return Content((HttpStatusCode)((HttpException)e).GetHttpCode(), ((HttpException)e).Message);
+		        return StatusCode(((HttpException)e).GetHttpCode(), ((HttpException)e).Message);
 		    if (e.InnerException is HttpException)
-		        return Content((HttpStatusCode)((HttpException)e.InnerException).GetHttpCode(), ((HttpException)e.InnerException).Message);
+		        return StatusCode(((HttpException)e.InnerException).GetHttpCode(), ((HttpException)e.InnerException).Message);
 
             if (e is AggregateException)
-				return InternalServerError(e.InnerException ?? e);
-		    
-            return InternalServerError(e);
+				return StatusCode((int)HttpStatusCode.InternalServerError, e.InnerException ?? e);
+            return StatusCode((int)HttpStatusCode.InternalServerError, e);
 		}
 
 		private static async Task<T> GetServiceProxyAsync<T>(Uri serviceUri) where T : IService
