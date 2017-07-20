@@ -123,6 +123,157 @@ namespace Basic.Web.Controllers
 			return base.AddAsync(application, service, collection, obj);
 		}
 
+
+
+		/*
+<div>
+
+    <script src="/js/editablegrid.js"></script>
+ 
+    <script src="/js/editablegrid_renderers.js"></script>
+   
+    <script src="/js/editablegrid_editors.js"></script>
+   
+    <script src="/js/editablegrid_validators.js"></script>
+
+    <script src="/js/editablegrid_utils.js"></script>
+
+    <script src="/js/editablegrid_charts.js"></script>
+    <link rel="stylesheet" href="/css/editablegrid.css" type="text/css" media="screen">
+
+    <style>
+        body {
+            font-family: 'lucida grande', tahoma, verdana, arial, sans-serif;
+            font-size: 11px;
+        }
+
+        h1 {
+            font-size: 15px;
+        }
+
+        a {
+            color: #548dc4;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        table.testgrid {
+            border-collapse: collapse;
+            border: 1px solid #CCB;
+            width: 800px;
+        }
+
+        table.testgrid td, table.testgrid th {
+            padding: 5px;
+            border: 1px solid #E0E0E0;
+        }
+
+        table.testgrid th {
+            background: #E5E5E5;
+            text-align: left;
+        }
+
+        input.invalid {
+            background: red;
+            color: #FDFDFD;
+        }
+    </style>
+
+    <script>
+        window.onload = function () {
+            var editableGrid = new EditableGrid("DemoGridJSON");
+            editableGrid.tableLoaded = function () { this.renderGrid("tablecontent", "testgrid"); };
+            editableGrid.loadJSON("grid.json");
+        }
+    </script>
+</div>	
+*/
+		/*
+<div class="row">
+    <!-- Heading row -->
+    <div class="row">
+        <div class="col-md-12">
+            <h1>Service Fabric Queryable</h1>
+            
+        </div>
+    </div>
+    <!-- Input, Table and Messages -->
+    
+    <style>
+        table, th, td 
+        {
+            margin:10px 0;
+            border:solid 1px #333;
+            padding:2px 4px;
+            font:15px Verdana;
+        }
+        th {
+            font-weight:bold;
+        }
+    </style>
+    <div class="row">
+        <div class="panel panel-primary">
+            <div class="panel-body">
+               
+                <!-- Input and Table -->
+                <div class="col-md-6">
+                    <!-- Input -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <input type="text" class="form-control" id="keyInput" placeholder="key" tabindex="1">
+                        </div>
+                        <div class="col-md-6">
+                            <input type="text" class="form-control" id="valueInput" placeholder="value" tabindex="2">
+                        </div>
+                    </div>
+                    <div class="row top-buffer">
+                        <div class="col-md-6">
+                            <button class="btn btn-primary btn-block" onclick="addStatefulBackendServiceKeyValuePair()" type="button" id="addStatefulBackendServiceKeyValuePair" tabindex="3">Add</button>
+                        </div>
+                        <div class="col-md-6">
+                            <button class="btn btn-primary btn-block" onclick="updateStatefulBackendServiceKeyValuePair()" type="button" id="updateStatefulBackendServiceKeyValuePair" tabindex="3">Update</button>
+                        </div>
+                        <div class="col-md-6">
+                            <button class="btn btn-primary btn-block" onclick="deleteStatefulBackendServiceKeyValuePair()" type="button" id="deleteStatefulBackendServiceKeyValuePair" tabindex="3">Delete</button>
+                        </div>
+                        <div class="col-md-6">
+                            <button class="btn btn-primary btn-block" onclick="getStatefulBackendServiceDictionary()" type="button" id="getStatefulBackendServiceDictionary" tabindex="4">Show All</button>
+                            <div id="showData"></div>
+                        </div>
+                        
+                        <div>
+                            
+                            <script>
+                                var editableGrid = new EditableGrid("DemoGridJSON");
+                                editableGrid.tableLoaded = function () { this.renderGrid("tablecontent", "testgrid"); };
+                                editableGrid.loadJSON("grid.json");
+                            </script>
+                            
+
+                        </div>
+                       
+                        
+                    </div>
+                    <!-- Table -->
+                    <div class="row top-buffer">
+                        <div class="col-md-12 table-responsive" style="overflow: auto; height:150px">
+                            <table class="table table-striped" id="statefulBackendServiceTable">
+                                <tr>
+                                    <th>Key</th>
+                                    <th>Value</th>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+*/
 		/// <summary>
 		/// Updates appropriate key & corresponding value to the given reliable collection in the queryable service.
 		/// SINGLE UPDATE:

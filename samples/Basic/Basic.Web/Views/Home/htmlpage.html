@@ -1,0 +1,244 @@
+﻿<html>
+<head>
+    <!-- Copyright 2016 ConvertJson.com -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta name="description" content="Convert JSON to HTML Table"/>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>JSON To HTML Table Converter</title>
+    <script src="/js/underscore-min.js"></script>
+    <script src="/js/blob.js"></script>
+    <script src="/js/filesaver.js"></script>
+    <script src="/js/json2.js"></script>
+    <script src="http://convertcsv.com/strsup.js"></script>
+    <script src="http://convertcsv.com/localread.js"></script>
+    <script src="http://convertcsv.com/csvparse.js"></script>
+    <script src="http://convertcsv.com/csvsup.js"></script>
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js" type="text/javascript"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+    <script src="http://convertcsv.com/js/jQuery-csv.js"></script>
+    <script src="https://cdn.jsdelivr.net/alasql/0.2.1/alasql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.8.0/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="/js/custom.css">
+
+    <script type="text/javascript">
+        function assignText(s) {
+            document.getElementById('txt1').value = s;
+        }
+        function runit(s) {
+            var delimiter = radiovalue(document.forms["frm1"].outsep);
+            var nobreaks  = document.getElementById('chkNoBreaks').checked;
+            var broke     = document.getElementById('chkBroke').checked;
+            var brokeArray= document.getElementById('txtArrayName').value;
+            var option2 = document.getElementById('chkOption2').checked;
+            var A=null;
+            if (delimiter == "o") delimiter = document.getElementById("outSepOtherVal").value;
+            if(s.trim()!="") {
+
+                if(broke && brokeArray!="") {
+                    try {
+                        A=JSON.parse(s);
+                        A=eval(brokeArray);
+                        s=JSON.stringify(A,null,4);
+                    }catch(e){
+                        alert("Array name or JSON not valid");
+                        return;
+                    }     
+                }
+                if(!option2) {
+                    try {
+                        var inArray = [];
+                        inArray=arrayFrom(JSON.parse(s));
+                        var outArray = [];
+                        for (var row in inArray) {
+                            outArray[outArray.length] = parse_object(inArray[row]);
+                        }
+                        var options = {};
+                        options.separator = delimiter;
+                        options.headers = (document.getElementById('chkCsvHeader')).checked;
+                        options.noBreaks = nobreaks;
+                        var csv = $.csv.fromObjects(outArray,options);
+                        if(options.headers && (csv.charAt(0)==='\n'||csv.charAt(0)==='\r'))csv="Field1"+csv;
+                        document.getElementById('txta').value = csv;
+                        CSV.isFirstRowHeader = (document.getElementById('chkCsvHeader')).checked;
+                        CSV.delimiter=delimiter;
+                        CSV.autodetect = false;
+                        CSV.parse(document.getElementById('txta').value);
+                        document.getElementById('txta').value = csvToTable(CSV, (document.getElementById('chkCsvHeader')).checked, false,false);
+                        document.getElementById('diva').innerHTML = document.getElementById('txta').value;
+                        return;
+                    }
+                    catch (e) {
+                        ; 
+                    }
+                }
+                else {
+                    try {
+                        document.getElementById('txta').value = jsonToCsv(s, delimiter, (document.getElementById('chkCsvHeader')).checked,(document.getElementById('chkCsvQuotes')).checked, nobreaks);
+                        CSV.isFirstRowHeader = (document.getElementById('chkCsvHeader')).checked;
+                        CSV.delimiter=delimiter;
+                        CSV.parse(document.getElementById('txta').value);
+                        document.getElementById('txta').value = csvToTable(CSV, (document.getElementById('chkCsvHeader')).checked, false,false);
+                        document.getElementById('diva').innerHTML = document.getElementById('txta').value;
+                    }catch (e) {
+                        if(!broke) {
+                            alert(e);
+                            alert('Invalid JSON entered.' + (e.Description ? e.Description : ""));
+                        } else {
+                            alert('Invalid JSON entered or JSON expression ' + brokeArray + " not valid.");
+                        }
+                    }
+                }
+            }
+   
+        }
+        function prettify(text)
+        {
+            return prettyJSON(text,3);
+        }
+        function runExample(n) {
+            document.getElementById('chkBroke').checked = false;
+            document.getElementById('txt1').value=getExampleJson(n);
+            document.getElementById('btnRun').click()
+        }
+    </script>
+
+</head> 
+<body>
+<div class="container">
+    <div class="row">
+        <div class="col-md-4">
+            <a href="/">
+                <div id="logo">
+                    <img width="250px" src="/images/JsonLogo.png" alt="Home Page">
+                </div>
+            </a>
+        </div>
+        <div class="col-md-8">
+            <div id="site-title">
+                <h1>Convert JSON to HTML Table</h1>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="row">
+            <script src="/js/leftmenu.js"></script>
+
+        </div>	
+        <div class="col-md-8">
+            <script type="text/javascript">
+                google_ad_client = "ca-pub-2674404638298268";
+                google_ad_slot = "3464009012";
+                google_ad_width = 320;
+                google_ad_height = 100;
+            </script>
+            <!-- MediumAcross -->
+            <script type="text/javascript"
+                    src="//pagead2.googlesyndication.com/pagead/show_ads.js">
+            </script>
+
+            <br/>
+            Use this tool to convert JSON into an HTML Table.
+            <br/>See also   Convert <a href="http://convertjson.com/html-table-to-json.htm">HTML Table to JSON</a> 
+            </p>
+            <h3 class="headerBlue">Step 1: Select your input</h3>
+            <form id="frm1" name="frm1" class="form-inline" role="form" onsubmit="return false">
+                <div class="form-group">
+                    <b>Option 1 - Choose JSON file here</b> 
+                    <input type="file" id="f1" class="form-control" onchange="loadTextFile(this,assignText)" title="Choose a local JSON file" />
+                    Encoding <input type="text" id="txtEncoding" size="8" value="" onchange="loadTextFile(document.getElementById('f1'),assignText)"  title="Enter encoding for input file or empty for default"/>
+                    <br/><b>Option 2 - Enter an URL</b> <input type="text" size="40" value="" name="url" id="url" class="form-control" title="Enter the URL of a web page" /> 
+                    <input type="button" id="btnUrl" class="btn btn-primary" value="Load URL" title="Load JSON via URL" onclick="loadURL(document.getElementById('url').value)" />
+                    <br/><b>Option 3 - paste into Text Box below</b><br/>
+
+                    <textarea class="form-control" rows="10" cols="80" id="txt1" wrap="off"></textarea>
+                    <br/><input type="button" class="btn btn-primary" value="Clear Input" onclick="window.location.reload(true)">
+                    <input type="button" class="btn btn-primary" value="Format JSON" title="JSON Pretty" onclick="document.getElementById('txt1').value=prettify(document.getElementById('txt1').value)">
+                    &nbsp; Examples: 
+                    <input type="button" class="btn btn-primary" value="1" title="Load and run example" onclick="runExample(1)">
+                    <input type="button" class="btn btn-primary" value="2" title="Load and run example" onclick="runExample(2)">
+                    <input type="button" class="btn btn-primary" value="3" title="Load and run example" onclick="runExample(3)">
+                    <input type="button" class="btn btn-primary" value="4" title="Load and run example" onclick="runExample(4)">
+                    <input type="button" class="btn btn-primary" value="5" title="Load and run example" onclick="runExample(5)">
+                    <input type="button" class="btn btn-primary" value="6" title="Load JSON from web page" onclick="document.getElementById('chkBroke').checked=false;document.getElementById('url').value='http://date.jsontest.com';document.getElementById('btnUrl').click()">
+                    <br/>
+                    <h3 class="headerBlue">Step 2: Choose output options <small>(optional)</small></h3>
+                    <hr/>
+                    <fieldset id="p4">
+
+                    Output Field Separator: 
+                    <label><input type="radio" name="outsep" id="outSepComma" value="," checked="checked"> ,</label> &nbsp;    
+                    <label><input type="radio" name="outsep" id="outSepSemicolon" value=";" > ;</label> &nbsp;
+                    <label><input type="radio" name="outsep" id="outSepSemicolon" value=":" > :</label> &nbsp;
+                    <label><input type="radio" name="outsep" id="outSepPipe" value="|" > Bar-|</label> &nbsp;
+                    <label><input type="radio" name="outsep" id="outSepTab" value=" " onclick="this.value='\t'" > Tab</label> &nbsp;
+                    <label><input type="radio" name="outsep" id="outSepOther" value="o" > Other-Choose</label>
+                    <label><input type="text" size="2" id="outSepOtherVal" value="*"/></label>
+
+                    <br />
+                    <label><input id="chkCsvHeader" type="checkbox" checked="checked" /> Include header in first row</label>
+                    <br />
+                    <label><input type="checkbox" id="chkNoBreaks" value="Y"> Suppress Line Breaks in Fields</label>
+                    <br />
+                    <label><input type="checkbox" id="chkBroke" value="Y"> Not working?</label> 
+                    If JSON variable A, name the array to convert: 
+                    <input type="text" id="txtArrayName" size="20" value="A" title="ex. A.name"/>
+                    <br/>
+                    <label><input id="chkOption2" type="checkbox" /> Still not happy - try an alternative conversion</label>
+                    <br/> <label><input id="chkCsvQuotes" type="checkbox" /> Force Wrap values in double quotes</label>
+
+
+                    <h3 class="headerBlue">Step 3: Generate output</h3>
+                    <div>
+                        <input type="button" id="btnRun" class="btn btn-primary" value="Convert JSON To HTML" title="Convert JSON To HTML Table" 
+                               onclick="runit(document.getElementById('txt1').value);return false">
+
+                    </div>
+                </div>
+
+
+                <div class="form-group">
+                    <label for="txta" class="control-label">Result Data:</label><br/>
+                    <textarea id="txta" rows="10" cols="80" wrap="off" placeholder="Output Results" class="form-control"></textarea>
+                </div>
+                <div class="form-group form-inline">
+                    <label>Save your result:</label>
+                    <input type="text" size="15" id="fn" value="convertcsv" class="form-control" title="Enter filename without extension" />.htm
+                    <button class="btn btn-primary" onclick="saveFile(document.getElementById('txta').value,'htm');return false"><span class="glyphicon glyphicon-save-file"></span> Download Result</button>
+                    <label title="End-of-Line">EOL: <select id="eol" title="CRLF=Windows,LF=Unix/Linux/New Apple/Android"><option value="">CRLF</option><option value="LF">LF</option></select></label>
+                    <br/>
+                </div> 
+
+
+            </form>
+            <div id="diva"></div>
+
+            <script type="text/javascript">
+                google_ad_client = "ca-pub-2674404638298268";
+                google_ad_slot = "3464009012";
+                google_ad_width = 320;
+                google_ad_height = 100;
+            </script>
+            <!-- MediumAcross -->
+            <script type="text/javascript" src="//pagead2.googlesyndication.com/pagead/show_ads.js">
+            </script>
+
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+
+                <div class="panel-footer">
+                    <script src="/js/footer.js"></script>
+                </div>
+            </div>
+        </div>	
+    </div>
+</div>
+</body>
+</html>
