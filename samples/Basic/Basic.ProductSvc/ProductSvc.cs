@@ -52,7 +52,14 @@ namespace Basic.ProductSvc
 				using (var tx = StateManager.CreateTransaction())
 				{
 					var key = $"sku-{i}";
-					var value = new Product { Sku = key, Price = 10.0 + (i / 10.0), Quantity = i };
+					/*var tempi = new Product.Inout
+					{
+						Entry = i * 11,
+						Exit = i * 12
+					};*/
+
+
+					var value = new Product { Sku = key, Price = 10.0 + (i / 10.0), Quantity = i, Testing = new Inout{Entry= i*11, Exit= i*12}};
 
 					await products.SetAsync(tx, key, value, TimeSpan.FromSeconds(4), cancellationToken).ConfigureAwait(false);
 					await tx.CommitAsync().ConfigureAwait(false);

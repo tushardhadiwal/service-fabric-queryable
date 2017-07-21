@@ -133,11 +133,19 @@ function getDictionary(s) {
 
                     var metadata = [];
                     var p = Object.keys(outArray[0]).length;
+                    var keyName;
 
                     if (outArray)
                         for (var i = 0; i < p; i++) {
+                            keyName = Object.keys(outArray[0])[i];
+                            if (keyName == "PartitionId") {
 
-                            metadata.push({ name: Object.keys(outArray[0])[i], datatype: "string", editable: true });
+                                metadata.push({ name: keyName, datatype: "string", editable: false });
+
+                            } else {
+
+                                metadata.push({ name: keyName, datatype: "string", editable: true });
+                            }
                         }
                     //var row = jsonData.data[i];
                     //  var row = tempoo;
