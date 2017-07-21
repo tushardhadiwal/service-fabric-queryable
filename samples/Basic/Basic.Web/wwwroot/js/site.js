@@ -131,6 +131,20 @@ function getDictionary(s) {
                         ]
                     }
 
+                    var metadata = [];
+                    var p = Object.keys(outArray[0]).length;
+
+                    if (outArray)
+                        for (var i = 0; i < p; i++) {
+
+                            metadata.push({ name: Object.keys(outArray[0])[i], datatype: "string", editable: true });
+                        }
+                    //var row = jsonData.data[i];
+                    //  var row = tempoo;
+                    //Object.keys(myVar)[0];
+
+
+
                     var fdata =
                     {
                         metadata: [{ "name": "PartitionId", "editable": false },
@@ -141,7 +155,8 @@ function getDictionary(s) {
                         ,
                         data: outArray
                     }
-                    editableGrid.loadJSONFromString(fdata);
+                    editableGrid.load({ "metadata": metadata, "data": outArray });
+                    // editableGrid.loadJSONFromString(fdata);
                     editableGrid.renderGrid("tablecontent", "testgrid");
                     //editableGrid.loadJSON(jsondata);
                     // EditableGrid.prototype.refreshGrid();
