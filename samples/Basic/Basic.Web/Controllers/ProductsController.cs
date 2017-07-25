@@ -48,7 +48,7 @@ namespace Basic.Web.Controllers
 		}
 
 		private IProductService GetProductService(string sku)
-		{   //IMP888
+		{
 			return ServiceProxy.Create<IProductService>(ProductServiceUri, new ServicePartitionKey(sku.GetHashCode()));
 		}
 	}

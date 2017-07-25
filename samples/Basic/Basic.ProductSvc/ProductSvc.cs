@@ -1,25 +1,26 @@
-﻿using System;
+﻿using Basic.Common;
+using Microsoft.ServiceFabric.Data.Collections;
+using Microsoft.ServiceFabric.Services.Communication.Runtime;
+using Microsoft.ServiceFabric.Services.Queryable;
+using Microsoft.ServiceFabric.Services.Remoting.Runtime;
+using System;
 using System.Collections.Generic;
 using System.Fabric;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.ServiceFabric.Data.Collections;
-using Microsoft.ServiceFabric.Services.Communication.Runtime;
-using Microsoft.ServiceFabric.Services.Queryable;
-using Microsoft.ServiceFabric.Services.Remoting.Runtime;
-using Basic.Common;
 
 namespace Basic.ProductSvc
 {
 	/// <summary>
 	/// An instance of this class is created for each service replica by the Service Fabric runtime.
-	/// </summary>B
+	/// </summary>
 	internal sealed class ProductSvc : QueryableService, IProductService
 	{
 		public ProductSvc(StatefulServiceContext context)
 			: base(context)
-		{ }
+		{
+		}
 
 		/// <summary>
 		/// Optional override to create listeners (e.g., HTTP, Service Remoting, WCF, etc.) for this service replica to handle client or user requests.
@@ -63,7 +64,6 @@ namespace Basic.ProductSvc
 
 					await products.SetAsync(tx, key, value, TimeSpan.FromSeconds(4), cancellationToken).ConfigureAwait(false);
 					await tx.CommitAsync().ConfigureAwait(false);
-                 //products.SetAsync()
 				}
 			}
 		}
