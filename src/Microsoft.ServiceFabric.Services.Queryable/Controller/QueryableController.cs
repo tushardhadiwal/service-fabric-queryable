@@ -15,11 +15,13 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
+//using System.Web;
 using System.Web.Http.Results;
 using System.Xml;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Html;
 using Microsoft.ServiceFabric.Services.Queryable.Controller;
+using HttpRequest = Microsoft.AspNetCore.Http.HttpRequest;
 
 namespace Microsoft.ServiceFabric.Services.Queryable
 {
@@ -32,7 +34,7 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 			try
 			{
 				string content = string.Empty;
-				if (Request.Method == HttpMethod.Get)
+				if (Request.Method == HttpMethod.Get.ToString())
 				{
 					var proxy = await GetServiceProxyAsync<IQueryableService>(serviceUri).ConfigureAwait(false);
 					var metadata = await proxy.GetMetadataAsync().ConfigureAwait(false);
@@ -47,7 +49,8 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 				var response = new HttpResponseMessage { Content = new StringContent(content, Encoding.UTF8, "application/xml") };
 				AddAccessControlHeaders(Request, response);
 
-				return new ResponseMessageResult(response);
+				//return new ResponseMessageResult(response);
+				return this.Json(new ResponseMessageResult(response));
 			}
 			catch (Exception e)
 			{
@@ -62,9 +65,10 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 			try
 			{
 				string content = string.Empty;
-				if (Request.Method == HttpMethod.Get)
+				if (Request.Method == HttpMethod.Get.ToString())
 				{
-					var query = Request.GetQueryNameValuePairs();
+					var query = Request.Query.Select(q => new KeyValuePair<string, string>(q.Key, q.Value));
+
 
 					// Query one service partition, allowing the partition to do the distributed query.
 					var proxy = await GetServiceProxyAsync<IQueryableService>(serviceUri).ConfigureAwait(false);
@@ -83,7 +87,7 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 				// Return response, with appropriate CORS headers.
 				var response = new HttpResponseMessage { Content = new StringContent(content, Encoding.UTF8, "application/json") };
 				AddAccessControlHeaders(Request, response);
-				return new ResponseMessageResult(response);
+				return this.Json(new ResponseMessageResult(response)); ;
 			}
 			catch (Exception e)
 			{
@@ -91,15 +95,15 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 			}
 		}
 
-		private void AddAccessControlHeaders(HttpRequestMessage request, HttpResponseMessage response)
+		private void AddAccessControlHeaders(HttpRequest request, HttpResponseMessage response)
 		{
 			IEnumerable<string> headers;
 
 			response.Headers.Add("Access-Control-Allow-Methods", "GET");
-			if (request.Headers.TryGetValues("Origin", out headers))
-				response.Headers.Add("Access-Control-Allow-Origin", headers);
-			if (request.Headers.TryGetValues("Access-Control-Request-Headers", out headers))
-				response.Headers.Add("Access-Control-Allow-Headers", headers);
+			//if (request.Headers.GetValues());//TryGetValues("Origin", out headers))
+				//response.Headers.Add("Access-Control-Allow-Origin", headers);
+			//if (request.Headers.TryGetValues("Access-Control-Request-Headers", out headers))
+				//response.Headers.Add("Access-Control-Allow-Headers", headers);
 		}
 
 		protected async Task<IActionResult> DeleteAsync(string application, string service, string collection,

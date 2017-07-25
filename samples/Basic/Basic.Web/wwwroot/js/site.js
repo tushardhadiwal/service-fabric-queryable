@@ -32,7 +32,7 @@ function getDictionary(s) {
                     if (outArray)
                         for (var i = 0; i < p; i++) {
                             keyName = Object.keys(outArray[0])[i];
-                            if (keyName == "PartitionId") {
+                            if (keyName === "PartitionId") {
 
                                 metadata.push({ name: keyName, datatype: "string", editable: false });
 
@@ -154,9 +154,9 @@ function jstohtml(s) {
 function arrayFrom(json) {
     var queue = [], next = json;
     while (next !== undefined) {
-        if ($.type(next) == "array")
+        if ($.type(next) === "array")
             return next;
-        if ($.type(next) == "object") {
+        if ($.type(next) === "object") {
             for (var key in next)
                 queue.push(next[key]);
         }
@@ -171,9 +171,9 @@ function parse_object(obj, path) {
         path = "";
 
     var type = $.type(obj);
-    var scalar = (type == "number" || type == "string" || type == "boolean" || type == "null");
+    var scalar = (type === "number" || type === "string" || type === "boolean" || type === "null");
 
-    if (type == "array" || type == "object") {
+    if (type === "array" || type === "object") {
         var d = {};
         for (var i in obj) {
 
