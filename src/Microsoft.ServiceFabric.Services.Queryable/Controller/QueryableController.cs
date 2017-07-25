@@ -20,6 +20,7 @@ using System.Web.Http.Results;
 using System.Xml;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Html;
+using Microsoft.Extensions.Primitives;
 using Microsoft.ServiceFabric.Services.Queryable.Controller;
 using HttpRequest = Microsoft.AspNetCore.Http.HttpRequest;
 
@@ -87,6 +88,7 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 				// Return response, with appropriate CORS headers.
 				var response = new HttpResponseMessage { Content = new StringContent(content, Encoding.UTF8, "application/json") };
 				AddAccessControlHeaders(Request, response);
+				Request.Headers.Count();
 				return this.Json(new ResponseMessageResult(response)); ;
 			}
 			catch (Exception e)
@@ -97,13 +99,17 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 
 		private void AddAccessControlHeaders(HttpRequest request, HttpResponseMessage response)
 		{
-			IEnumerable<string> headers;
-
 			response.Headers.Add("Access-Control-Allow-Methods", "GET");
-			//if (request.Headers.GetValues());//TryGetValues("Origin", out headers))
-				//response.Headers.Add("Access-Control-Allow-Origin", headers);
-			//if (request.Headers.TryGetValues("Access-Control-Request-Headers", out headers))
-				//response.Headers.Add("Access-Control-Allow-Headers", headers);
+
+			string originHeader = request.Headers["origin"];
+			bool isOrigin;
+			if (bool.TryParse(originHeader, out isOrigin) && isOrigin) 
+			response.Headers.Add("Access-Control-Allow-Origin", originHeader);
+
+			string acrHeader = request.Headers["Access-Control-Request-Headers"];
+			bool isAcr;
+			if ((bool.TryParse(acrHeader, out isAcr) && isAcr))
+			response.Headers.Add("Access-Control-Allow-Headers", acrHeader);
 		}
 
 		protected async Task<IActionResult> DeleteAsync(string application, string service, string collection,
