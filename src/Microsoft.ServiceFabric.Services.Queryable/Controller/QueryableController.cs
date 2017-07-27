@@ -51,6 +51,7 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 				AddAccessControlHeaders(Request, response);
 
 				//return new ResponseMessageResult(response);
+				var tt = this.Json(new ResponseMessageResult(response));
 				return this.Json(new ResponseMessageResult(response));
 			}
 			catch (Exception e)
@@ -89,6 +90,7 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 				var response = new HttpResponseMessage { Content = new StringContent(content, Encoding.UTF8, "application/json") };
 				AddAccessControlHeaders(Request, response);
 				Request.Headers.Count();
+				var tt= this.Json(new ResponseMessageResult(response));
 				return this.Json(new ResponseMessageResult(response)); ;
 			}
 			catch (Exception e)
@@ -97,19 +99,18 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 			}
 		}
 
-		private void AddAccessControlHeaders(HttpRequest request, HttpResponseMessage response)
+		private void AddAccessControlHeaders(HttpRequest request, HttpResponse response)
 		{
 			response.Headers.Add("Access-Control-Allow-Methods", "GET");
 
 			string originHeader = request.Headers["origin"];
 			bool isOrigin;
-			if (bool.TryParse(originHeader, out isOrigin) && isOrigin) 
-			response.Headers.Add("Access-Control-Allow-Origin", originHeader);
+			if (originHeader!=null) //bool.TryParse(originHeader, out isOrigin) && isOrigin
+				response.Headers.Add("Access-Control-Allow-Origin", originHeader);
 
 			string acrHeader = request.Headers["Access-Control-Request-Headers"];
-			bool isAcr;
-			if ((bool.TryParse(acrHeader, out isAcr) && isAcr))
-			response.Headers.Add("Access-Control-Allow-Headers", acrHeader);
+			if (acrHeader!=null)
+				response.Headers.Add("Access-Control-Allow-Headers", acrHeader);
 		}
 
 		protected async Task<IActionResult> DeleteAsync(string application, string service, string collection,
