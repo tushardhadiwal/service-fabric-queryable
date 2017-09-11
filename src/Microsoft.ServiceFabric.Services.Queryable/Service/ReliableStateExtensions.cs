@@ -1,10 +1,8 @@
 ﻿using Microsoft.Data.OData;
 using Microsoft.ServiceFabric.Data;
 using Microsoft.ServiceFabric.Data.Collections;
-using Microsoft.ServiceFabric.Services.Client;
-using Microsoft.ServiceFabric.Services.Remoting;
-using Microsoft.ServiceFabric.Services.Remoting.Client;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Fabric;
@@ -12,7 +10,7 @@ using System.Fabric.Query;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Runtime.Serialization.Formatters.Binary;
+using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,7 +19,8 @@ using System.Web.Http.OData.Query;
 
 namespace Microsoft.ServiceFabric.Services.Queryable
 {
-	internal static class ReliableStateExtensions
+	// TODO: this should be internal once QueryableMiddleware is ready and moved into Queryable assembly.
+	public static class ReliableStateExtensions
 	{
 		private static readonly QueryModelCache QueryCache = new QueryModelCache();
 
@@ -61,14 +60,18 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 		/// <param name="query">OData query parameters.</param>
 		/// <param name="cancellationToken">Cancellation token.</param>
 		/// <returns>The json serialized results of the query.</returns>
-		public static async Task<IEnumerable<string>> QueryAsync(this IReliableStateManager stateManager,
-			StatefulServiceContext context, string collection, IEnumerable<KeyValuePair<string, string>> query,
-			CancellationToken cancellationToken)
+		public static async Task<IEnumerable<JToken>> QueryAsync(this IReliableStateManager stateManager,
+			StatefulServiceContext context, string collection, IEnumerable<KeyValuePair<string, string>> query, CancellationToken cancellationToken)
 		{
+			// Get the list of partitions (excluding the executing partition).
+			var partitions = await GetPartitionsAsync(context).ConfigureAwait(false);
+
 			// Query all service partitions concurrently.
-			var proxies = await GetServiceProxiesAsync<IQueryableService>(context).ConfigureAwait(false);
-			var queries = proxies.Select(p => p.QueryPartitionAsync(collection, query)).Concat(new[]
-				{stateManager.QueryPartitionAsync(collection, query, context.PartitionId, cancellationToken)});
+			var remoteQueries = partitions.Select(p => QueryPartitionAsync(p, context, collection, query, cancellationToken));
+			var localQuery = stateManager.QueryPartitionAsync(collection, query, context.PartitionId, cancellationToken);
+			var queries = remoteQueries.Concat(new[] { localQuery });
+
+			// Aggregate all query results into a single list.
 			var queryResults = await Task.WhenAll(queries).ConfigureAwait(false);
 			var results = queryResults.SelectMany(r => r);
 
@@ -77,9 +80,9 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 			{
 				var reliableState = await stateManager.GetQueryableState(collection).ConfigureAwait(false);
 				var entityType = reliableState.GetEntityType();
-				var objects = results.Select(r => JsonConvert.DeserializeObject(r, entityType));
+				var objects = results.Select(r => r.ToObject(entityType));
 				var queryResult = ApplyQuery(objects, entityType, query, aggregate: true);
-				results = queryResult.Select(JsonConvert.SerializeObject);
+				results = queryResult.Select(q => JObject.FromObject(q));
 			}
 
 			// Return the filtered data as json.
@@ -95,9 +98,8 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 		/// <param name="partitionId">Partition id.</param>
 		/// <param name="cancellationToken">Cancellation token.</param>
 		/// <returns>The json serialized results of the query.</returns>
-		public static async Task<IEnumerable<string>> QueryPartitionAsync(this IReliableStateManager stateManager,
-			string collection, IEnumerable<KeyValuePair<string, string>> query, Guid partitionId,
-			CancellationToken cancellationToken)
+		public static async Task<IEnumerable<JToken>> QueryPartitionAsync(this IReliableStateManager stateManager,
+			string collection, IEnumerable<KeyValuePair<string, string>> query, Guid partitionId, CancellationToken cancellationToken)
 		{
 			// Find the reliable state.
 			var reliableState = await stateManager.GetQueryableState(collection).ConfigureAwait(false);
@@ -111,133 +113,168 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 				var entityType = reliableState.GetEntityType();
 				results = ApplyQuery(results, entityType, query, aggregate: false);
 			}
+
 			// Return the filtered data as json.
-			return results.Select(JsonConvert.SerializeObject);
+			return results.Select(r => JObject.FromObject(r));
 		}
 
 		/// <summary>
-		/// Add to the reliable collection the given key & value using the reliable state managers.
+		/// This implementation should not leak into the core Queryable code.  It is dependent on the specific protocol
+		/// used to communicate with the other partitions (HTTP over ReverseProxy), and should be hidden behind an interface.
+		/// </summary>
+		private static async Task<IEnumerable<JToken>> QueryPartitionAsync(Partition partition,
+			StatefulServiceContext context, string collection, IEnumerable<KeyValuePair<string, string>> query, CancellationToken cancellationToken)
+		{
+			using (var client = new HttpClient { BaseAddress = new Uri("http://localhost:19081/") })
+			{
+				string requestUri = $"{context.ServiceName.AbsolutePath}/query/{partition.PartitionInformation.Id}/{collection}?{GetQueryParameters(query, partition)}";
+				var response = await client.GetAsync(requestUri).ConfigureAwait(false);
+				var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+				var result = JsonConvert.DeserializeObject<ODataResult>(content);
+				return result.Value;
+			}
+		}
+
+		private static string GetQueryParameters(IEnumerable<KeyValuePair<string, string>> query, Partition partition)
+		{
+			var partitionParameters = GetPartitionQueryParameters(partition);
+			var queryParameters = partitionParameters.Concat(query).Distinct();
+			return string.Join("&", queryParameters.Select(p => $"{p.Key}={p.Value}"));
+		}
+
+		private static IEnumerable<KeyValuePair<string, string>> GetPartitionQueryParameters(Partition partition)
+		{
+			var info = partition.PartitionInformation;
+			yield return new KeyValuePair<string, string>("PartitionKind", info.Kind.ToString());
+
+			if (info.Kind == ServicePartitionKind.Int64Range)
+				yield return new KeyValuePair<string, string>("PartitionKey", (info as Int64RangePartitionInformation).LowKey.ToString());
+			else if (info.Kind == ServicePartitionKind.Named)
+				yield return new KeyValuePair<string, string>("PartitionKey", (info as NamedPartitionInformation).Name);
+		}
+
+		/// <summary>
+		/// Execute the operations given in <paramref name="operations"/> in a transaction.
 		/// </summary>
 		/// <param name="stateManager">Reliable state manager for the replica.</param>
-		/// <param name="backendObjects">Array of objects of class BackendViewModel involving Operation,Collection,Key & Value.</param>
-		/// <returns>A list of statuscodes indicating success/failure of the operations.</returns>
-		public static async Task<List<int>> DmlAsync(this IReliableStateManager stateManager, Controller.BackendViewModel[] backendObjects)
+		/// <param name="operations">Operations (add/update/delete) to perform against collections in the partition.</param>
+		/// <returns>A list of status codes indicating success/failure of the operations.</returns>
+		public static async Task<List<DmlResult>> ExecuteAsync(this IReliableStateManager stateManager, EntityOperation<JToken, JToken>[] operations)
 		{
-			var listOfStatusCodes = new List<int>();
-			try
+			var results = new List<DmlResult>();
+			using (var tx = stateManager.CreateTransaction())
 			{
-				using (ITransaction tx = stateManager.CreateTransaction())
+				foreach (var operation in operations)
 				{
-					foreach (Controller.BackendViewModel myBack in backendObjects)
+					var result = new DmlResult
 					{
-						var dictionary = await stateManager.GetQueryableState(myBack.Collection).ConfigureAwait(false);
-						var keyType = dictionary.GetKeyType();
-						var valueType = dictionary.GetValueType();
-						var key = JsonConvert.DeserializeObject(myBack.Key, keyType);
-						var val = JsonConvert.DeserializeObject(myBack.Value, valueType);
-						var dictionaryType = typeof(IReliableDictionary<,>).MakeGenericType(keyType, valueType);
+						PartitionId = operation.PartitionId,
+						Collection = operation.Collection,
+						Key = operation.Key,
+						Status = (int)HttpStatusCode.OK,
+					};
+					results.Add(result);
 
-						
+					var dictionary = await stateManager.GetQueryableState(operation.Collection).ConfigureAwait(false);
 
+					var keyType = dictionary.GetKeyType();
+					var valueType = dictionary.GetValueType();
+					var key = operation.Key.ToObject(keyType);
+					var value = operation.Value.ToObject(valueType);
+					var dictionaryType = typeof(IReliableDictionary<,>).MakeGenericType(keyType, valueType);
 
-						if (myBack.Operation == Controller.Operation.Add)
+					if (operation.Operation == Operation.Add)
+					{
+						try
 						{
-							try
-							{
-								await (Task)dictionaryType.GetMethod("AddAsync", new[] { typeof(ITransaction), keyType, valueType }).Invoke(dictionary, new[] { tx, key, val });
-							}
-							catch (ArgumentException)
-							{
-								listOfStatusCodes.Add((int)HttpStatusCode.BadRequest); // key already exists.
-								return listOfStatusCodes;
-							}
-							listOfStatusCodes.Add((int)HttpStatusCode.OK);
+							await (Task)dictionaryType.GetMethod("AddAsync", new[] { typeof(ITransaction), keyType, valueType }).Invoke(dictionary, new[] { tx, key, value });
 						}
-
-						var getValTask = (Task)dictionaryType.GetMethod("TryGetValueAsync", new[] { typeof(ITransaction), keyType, typeof(LockMode) }).Invoke(dictionary, new[] { tx, key, LockMode.Update });
-						await getValTask.ConfigureAwait(false);
-						var getValTaskResult = getValTask.GetPropertyValue<object>("Result");
-						var getValSuccess = getValTaskResult.GetPropertyValue<bool>("HasValue");
-						if (myBack.Operation == Controller.Operation.Update)
+						catch (ArgumentException)
 						{
-							try
-							{ //Check if value already exists, if it exists then only update.
-								
-								if (!getValSuccess)
-								{
-									listOfStatusCodes.Add((int)HttpStatusCode.BadRequest);
-									return listOfStatusCodes;
-								}
-								else if(getValSuccess)
-								{
-									var oldVal = getValTaskResult.GetPropertyValue<object>("Value");
-									var oldValEtag = CRC64.ToCRC64(JsonConvert.SerializeObject(oldVal)).ToString();
-									if(oldValEtag!=myBack.Etag)
-									{
-										listOfStatusCodes.Add((int)HttpStatusCode.PreconditionFailed);
-										return listOfStatusCodes;
-									}
-									await (Task)dictionaryType.GetMethod("SetAsync", new[] { typeof(ITransaction), keyType, valueType }).Invoke(dictionary, new[] { tx, key, val });
-									listOfStatusCodes.Add((int)HttpStatusCode.OK);
-
-								}
-							}
-							catch (ArgumentException)
-							{
-								listOfStatusCodes.Add((int)HttpStatusCode.BadRequest);
-								return listOfStatusCodes;
-							}
-							
-						}
-						if (myBack.Operation == Controller.Operation.Delete)
-						{
-							try
-							{
-								if (!getValSuccess)
-								{
-									listOfStatusCodes.Add((int)HttpStatusCode.BadRequest);//key has no corresponding value & you are trying to delete what doesnt exist.
-									return listOfStatusCodes;
-								}
-								else if (getValSuccess)
-								{
-									var oldVal = getValTaskResult.GetPropertyValue<object>("Value");
-									var oldValEtag = CRC64.ToCRC64(JsonConvert.SerializeObject(oldVal)).ToString();
-									if (oldValEtag != myBack.Etag)
-									{
-										listOfStatusCodes.Add((int)HttpStatusCode.PreconditionFailed); // Value you are trying to delete has been changed.
-										return listOfStatusCodes;
-									}
-
-									var deleteTask = (Task)dictionaryType.GetMethod("TryRemoveAsync", new[] { typeof(ITransaction), keyType }).Invoke(dictionary, new[] { tx, key });
-									await deleteTask.ConfigureAwait(false);
-									var result = deleteTask.GetPropertyValue<object>("Result");
-									var success = result.GetPropertyValue<bool>("HasValue");
-									if (!success)
-									{
-										listOfStatusCodes.Add((int)HttpStatusCode.BadRequest); //couldnt delete value although its there n not changed etc.
-										return listOfStatusCodes;
-									}
-									else
-									{
-										listOfStatusCodes.Add((int)HttpStatusCode.OK);
-									}
-								}
-							}
-							catch (ArgumentException)
-							{
-								listOfStatusCodes.Add((int)HttpStatusCode.BadRequest);
-								return listOfStatusCodes;
-							}
+							result.Status = (int)HttpStatusCode.BadRequest; // key already exists.
+							return results;
 						}
 					}
-					await tx.CommitAsync();
+
+					// TODO: this shouldn't be called in Add case.
+					var getValTask = (Task)dictionaryType.GetMethod("TryGetValueAsync", new[] { typeof(ITransaction), keyType, typeof(LockMode) }).Invoke(dictionary, new[] { tx, key, LockMode.Update });
+					await getValTask.ConfigureAwait(false);
+					var getValTaskResult = getValTask.GetPropertyValue<object>("Result");
+					var getValSuccess = getValTaskResult.GetPropertyValue<bool>("HasValue");
+
+					if (operation.Operation == Operation.Update)
+					{
+						try
+						{
+							// Only update the value if it exists.
+							if (!getValSuccess)
+							{
+								result.Status = (int)HttpStatusCode.BadRequest;
+								return results;
+							}
+							else
+							{
+								var oldValue = getValTaskResult.GetPropertyValue<object>("Value");
+								var oldValEtag = CRC64.ToCRC64(JsonConvert.SerializeObject(oldValue)).ToString();
+								if (oldValEtag != operation.Etag)
+								{
+									result.Status = (int)HttpStatusCode.PreconditionFailed;
+									return results;
+								}
+
+								await (Task)dictionaryType.GetMethod("SetAsync", new[] { typeof(ITransaction), keyType, valueType }).Invoke(dictionary, new[] { tx, key, value });
+							}
+						}
+						catch (ArgumentException)
+						{
+							result.Status = (int)HttpStatusCode.BadRequest;
+							return results;
+						}
+					}
+
+					if (operation.Operation == Operation.Delete)
+					{
+						try
+						{
+							if (!getValSuccess)
+							{
+								result.Status = (int)HttpStatusCode.BadRequest; // key has no corresponding value & you are trying to delete what doesnt exist.
+								return results;
+							}
+							else
+							{
+								var oldVal = getValTaskResult.GetPropertyValue<object>("Value");
+								var oldValEtag = CRC64.ToCRC64(JsonConvert.SerializeObject(oldVal)).ToString();
+								if (oldValEtag != operation.Etag)
+								{
+									result.Status = (int)HttpStatusCode.PreconditionFailed; // Value you are trying to delete has been changed.
+									return results;
+								}
+
+								var deleteTask = (Task)dictionaryType.GetMethod("TryRemoveAsync", new[] { typeof(ITransaction), keyType }).Invoke(dictionary, new[] { tx, key });
+								await deleteTask.ConfigureAwait(false);
+								var deleteResult = deleteTask.GetPropertyValue<object>("Result");
+								var deleteSuccess = deleteResult.GetPropertyValue<bool>("HasValue");
+								if (!deleteSuccess)
+								{
+									result.Status = (int)HttpStatusCode.BadRequest; // Cannot delete a value that's not there.
+									return results;
+								}
+							}
+						}
+						catch (ArgumentException)
+						{
+							result.Status = (int)HttpStatusCode.BadRequest;
+							return results;
+						}
+					}
 				}
+
+				await tx.CommitAsync().ConfigureAwait(false);
 			}
-			catch (ArgumentException)
-			{
-				listOfStatusCodes.Add((int)HttpStatusCode.BadRequest);
-			}
-			return listOfStatusCodes;
+
+			return results;
 		}
 
 		/// <summary>
@@ -246,8 +283,7 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 		/// <param name="stateManager">Reliable state manager for the replica.</param>
 		/// <param name="collection">Name of the reliable collection.</param>
 		/// <returns>The reliable collection that supports querying.</returns>
-		private static async Task<IReliableState> GetQueryableState(this IReliableStateManager stateManager,
-			string collection)
+		private static async Task<IReliableState> GetQueryableState(this IReliableStateManager stateManager, string collection)
 		{
 			// Find the reliable state.
 			var reliableStateResult = await stateManager.TryGetAsync<IReliableState>(collection).ConfigureAwait(false);
@@ -286,6 +322,13 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 			return types;
 		}
 
+		/// <summary>
+		/// Get the Entity model type from the reliable dictionary.
+		/// This is the full metadata type definition for the rows in the
+		/// dictionary (key, value, partition, etag).
+		/// </summary>
+		/// <param name="state">Reliable dictionary instance.</param>
+		/// <returns>The Entity model type for the dictionary.</returns>
 		private static Type GetEntityType(this IReliableState state)
 		{
 			var keyType = state.GetKeyType();
@@ -322,6 +365,11 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 		/// <summary>
 		/// Reads all values from the reliable state into an in-memory collection.
 		/// </summary>
+		/// <remarks>
+		/// This is inefficient.  We should execute the query expression against the elements as we enumerate, rather than
+		/// getting the full list of objects in memory, then executing the query expression against the whole list.  This
+		/// is especially beneficial when the query can exit early (e.g. top 10).
+		/// </remarks>
 		/// <param name="state">Reliable state (must implement <see cref="IReliableDictionary{TKey, TValue}"/>).</param>
 		/// <param name="stateManager">Reliable state manager, to create a transaction.</param>
 		/// <param name="partitionId">Partition id.</param>
@@ -352,6 +400,8 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 					var current = asyncEnumerator.GetPropertyValue<object>("Current");
 					var key = current.GetPropertyValue<object>("Key");
 					var value = current.GetPropertyValue<object>("Value");
+
+					// TODO: only set the ETag if the query selects this object.
 					var serialisedValue = JsonConvert.SerializeObject(value);
 					var etag = CRC64.ToCRC64(serialisedValue).ToString();
 
@@ -368,28 +418,13 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 			return results;
 		}
 
-		private static async Task<IEnumerable<T>> GetServiceProxiesAsync<T>(StatefulServiceContext context) where T : IService
+		private static async Task<IEnumerable<Partition>> GetPartitionsAsync(StatefulServiceContext context)
 		{
 			using (var client = new FabricClient())
 			{
 				var partitions = await client.QueryManager.GetPartitionListAsync(context.ServiceName).ConfigureAwait(false);
-				return partitions.Where(p => p.PartitionInformation.Id != context.PartitionId)
-					.Select(p => CreateServiceProxy<T>(context.ServiceName, p));
+				return partitions.Where(p => p.PartitionInformation.Id != context.PartitionId);
 			}
-		}
-
-		private static T CreateServiceProxy<T>(Uri serviceUri, Partition partition) where T : IService
-		{
-			if (partition.PartitionInformation is Int64RangePartitionInformation)
-				return ServiceProxy.Create<T>(serviceUri,
-					new ServicePartitionKey(((Int64RangePartitionInformation)partition.PartitionInformation).LowKey));
-			if (partition.PartitionInformation is NamedPartitionInformation)
-				return ServiceProxy.Create<T>(serviceUri,
-					new ServicePartitionKey(((NamedPartitionInformation)partition.PartitionInformation).Name));
-			if (partition.PartitionInformation is SingletonPartitionInformation)
-				return ServiceProxy.Create<T>(serviceUri);
-
-			throw new ArgumentException(nameof(partition));
 		}
 
 		/// <summary>

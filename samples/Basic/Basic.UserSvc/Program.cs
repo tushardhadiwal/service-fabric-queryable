@@ -1,7 +1,7 @@
 ﻿using Microsoft.ServiceFabric.Services.Runtime;
 using System.Threading;
 
-namespace Basic.WebSvc
+namespace Basic.UserSvc
 {
 	internal static class Program
 	{
@@ -15,10 +15,10 @@ namespace Basic.WebSvc
 			// When Service Fabric creates an instance of this service type,
 			// an instance of the class is created in this host process.
 
-			ServiceRuntime.RegisterServiceAsync("WebSvcType",
-				context => new WebSvc(context)).GetAwaiter().GetResult();
+			ServiceRuntime.RegisterServiceAsync("Basic.UserSvcType",
+				context => new UserSvc(context)).GetAwaiter().GetResult();
 
-			// Prevents this host process from terminating so services keeps running.
+			// Prevents this host process from terminating so services keeps running. 
 			Thread.Sleep(Timeout.Infinite);
 		}
 	}

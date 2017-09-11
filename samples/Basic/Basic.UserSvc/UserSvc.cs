@@ -7,21 +7,21 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.ServiceFabric.Data;
+using Microsoft.ServiceFabric.Data.Collections;
 using Microsoft.ServiceFabric.Services.Communication.AspNetCore;
 using Microsoft.ServiceFabric.Services.Communication.Runtime;
 using Microsoft.ServiceFabric.Services.Runtime;
-using Microsoft.ServiceFabric.Data;
-using Microsoft.ServiceFabric.Data.Collections;
 using Basic.Common;
 
-namespace Basic.ProductSvc
+namespace Basic.UserSvc
 {
 	/// <summary>
 	/// The FabricRuntime creates an instance of this class for each service type instance. 
 	/// </summary>
-	internal sealed class ProductSvc : StatefulService
+	internal sealed class UserSvc : StatefulService
 	{
-		public ProductSvc(StatefulServiceContext context)
+		public UserSvc(StatefulServiceContext context)
 			: base(context)
 		{ }
 
@@ -52,39 +52,31 @@ namespace Basic.ProductSvc
 			};
 		}
 
-		/// <summary>
-		/// This is the main entry point for your service replica.
-		/// This method executes when this replica of your service becomes primary and has write status.
-		/// </summary>
-		/// <param name="cancellationToken">Canceled when Service Fabric needs to shut down this service replica.</param>
 		protected override async Task RunAsync(CancellationToken cancellationToken)
 		{
-			var products = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, Product>>("products");
-			var cars = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, Cars>>("Cars");
+			var users = await StateManager.GetOrAddAsync<IReliableDictionary<string, UserProfile>>("users");
 
-			int partitionIndex = await GetPartitionIndex().ConfigureAwait(false);
-			for (int i = 0; i < 100; i++)
+			for (int i = 0; i < 50; i++)
 			{
 				using (var tx = StateManager.CreateTransaction())
 				{
-					var key = $"sku-{i}";
-					var product = new Product { Sku = key, Price = 10.0 + (i / 10.0), Quantity = i };
-					var car = new Cars { Model = key, Price = 8000 + (i / 10.0), HorsePower = i * 50, MPG = i + 30 };
-					await products.SetAsync(tx, key, product, TimeSpan.FromSeconds(4), cancellationToken).ConfigureAwait(false);
-					await cars.SetAsync(tx, key, car, TimeSpan.FromSeconds(4), cancellationToken).ConfigureAwait(false);
+					var user = new UserProfile
+					{
+						Name = $"User {i}",
+						Email = $"user-{i}@example.com",
+						Age = 20 + i / 3,
+						Address = new Address
+						{
+							AddressLine1 = $"1{i} Main St.",
+							City = "Seattle",
+							State = "WA",
+							Zipcode = 98117,
+						},
+					};
 
-					await tx.CommitAsync().ConfigureAwait(false);
+					await users.SetAsync(tx, user.Email, user, TimeSpan.FromSeconds(4), cancellationToken);
+					await tx.CommitAsync();
 				}
-			}
-		}
-
-		private async Task<int> GetPartitionIndex()
-		{
-			using (var client = new FabricClient())
-			{
-				var partitionList = await client.QueryManager.GetPartitionListAsync(Context.ServiceName).ConfigureAwait(false);
-				var partitions = partitionList.Select(p => p.PartitionInformation.Id).OrderBy(id => id).ToList();
-				return partitions.IndexOf(Context.PartitionId);
 			}
 		}
 	}
