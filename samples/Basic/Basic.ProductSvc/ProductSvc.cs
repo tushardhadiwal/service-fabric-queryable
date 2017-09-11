@@ -48,7 +48,7 @@ namespace Basic.ProductSvc
 			var products2 = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, Product>>("products2");
 			var cars = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, Cars>>("Cars");
 			int partitionIndex = await GetPartitionIndex().ConfigureAwait(false);
-			for (int i = 0; i < 10; i++)
+			for (int i = 0; i < 100; i++)
 			{
 				using (var tx = StateManager.CreateTransaction())
 				{
