@@ -7,21 +7,21 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.ServiceFabric.Data;
-using Microsoft.ServiceFabric.Data.Collections;
 using Microsoft.ServiceFabric.Services.Communication.AspNetCore;
 using Microsoft.ServiceFabric.Services.Communication.Runtime;
 using Microsoft.ServiceFabric.Services.Runtime;
+using Microsoft.ServiceFabric.Data;
+using Microsoft.ServiceFabric.Data.Collections;
 using Basic.Common;
 
-namespace Basic.UserSvc
+namespace Basic.CarSvc
 {
 	/// <summary>
 	/// The FabricRuntime creates an instance of this class for each service type instance. 
 	/// </summary>
-	internal sealed class UserSvc : StatefulService
+	internal sealed class CarSvc : StatefulService
 	{
-		public UserSvc(StatefulServiceContext context)
+		public CarSvc(StatefulServiceContext context)
 			: base(context)
 		{ }
 
@@ -54,31 +54,23 @@ namespace Basic.UserSvc
 
 		protected override async Task RunAsync(CancellationToken cancellationToken)
 		{
-			var users = await StateManager.GetOrAddAsync<IReliableDictionary<UserName, UserProfile>>("users");
+			var cars = await StateManager.GetOrAddAsync<IReliableDictionary<string, Car>>("cars");
 
-			for (int i = 0; i < 100000; i++)
+			for (int i = 0; i < 50; i++)
 			{
 				using (var tx = StateManager.CreateTransaction())
 				{
-					var user = new UserProfile
+					var car = new Car
 					{
-						Name = new UserName
-						{
-							First = $"First{i}",
-							Last = $"Last{i}",
-						},
-						Email = $"user-{i}@example.com",
-						Age = 20 + i / 3,
-						Address = new Address
-						{
-							AddressLine1 = $"1{i} Main St.",
-							City = "Seattle",
-							State = "WA",
-							Zipcode = 98117,
-						},
+						VIN = $"JTK{i}",
+						Make = i % 3 == 0 ? "Ford" : i % 3 == 1 ? "Dodge" : "Toyota",
+						Model = i % 6 == 0 ? "Mustang" : i % 6 == 1 ? "Challenger" : i % 6 == 2 ? "Prius" : i % 6 == 3 ? "Explorer" : i % 6 == 4 ? "Charger" : "Fortuner",
+						Year = 2000 + (i % 10),
+						Price = 20000 + i,
+						MPG = 30 + (i % 6 == 2 ? 20 : 3),
 					};
 
-					await users.SetAsync(tx, user.Name, user, TimeSpan.FromSeconds(4), cancellationToken);
+					await cars.SetAsync(tx, car.VIN, car, TimeSpan.FromSeconds(4), cancellationToken);
 					await tx.CommitAsync();
 				}
 			}

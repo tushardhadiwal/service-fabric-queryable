@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.ServiceFabric.Data;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Web.Http.OData;
@@ -8,6 +9,11 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 {
 	internal class ODataQueryOptions
 	{
+		/// <summary>
+		/// Maximum number of items the query is allowed to return.
+		/// </summary>
+		private const int MaxTop = 100;
+
 		public FilterQueryOption Filter { get; set; }
 		public OrderByQueryOption OrderBy { get; set; }
 		public SelectExpandQueryOption Select { get; set; }
@@ -51,6 +57,11 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 						throw new ArgumentException($"'{queryParameter.Key}' option is not supported");
 				}
 			}
+
+			if (Top == null || Top.Value > MaxTop)
+			{
+				Top = new TopQueryOption($"{MaxTop}", context);
+			}
 		}
 
 		public IQueryable ApplyTo(IQueryable queryable, ODataQuerySettings settings)
@@ -71,6 +82,29 @@ namespace Microsoft.ServiceFabric.Services.Queryable
 			if (Select != null)
 			{
 				result = Select.ApplyTo(result, settings);
+			}
+
+			return result;
+		}
+
+		public IAsyncEnumerable<object> ApplyTo(IAsyncEnumerable<object> enumerable, ODataQuerySettings settings)
+		{
+			IAsyncEnumerable<object> result = enumerable;
+			if (Filter != null)
+			{
+				result = Filter.ApplyTo(result, settings);
+			}
+			if (OrderBy != null)
+			{
+				result = OrderBy.ApplyTo(result, settings);
+			}
+			if (Top != null)
+			{
+				result = Top.ApplyTo(result, settings);
+			}
+			if (Select != null)
+			{
+				result = Select.ApplyTo<object>(result, settings);
 			}
 
 			return result;
